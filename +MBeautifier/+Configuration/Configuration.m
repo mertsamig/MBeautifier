@@ -47,7 +47,7 @@ classdef Configuration < handle
         end
 
         function characters = operatorCharacters(obj)
-            keys = obj.OperatorPaddingRules.keys();
+            keys = obj.OperatorPaddingRuleNamesInOrder;
             characters = cell(1, numel(keys));
             for i = 1:numel(keys)
                 characters{i} = obj.operatorPaddingRule(keys{i}).ValueFrom;

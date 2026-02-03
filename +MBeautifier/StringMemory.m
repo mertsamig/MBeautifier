@@ -28,7 +28,7 @@ classdef StringMemory < handle
 
             if numel(indices) > 1
                 stringStartedWith = '';
-                currentString = '';
+                currentStringParts = {};
                 isInString = false;
                 lastWasEscape = false;
                 for iMatch = 1:numel(indices)
@@ -41,11 +41,12 @@ classdef StringMemory < handle
                         strArray{iMatch} = predecingPart;
                         isInString = true;
                         stringStartedWith = actCode(indices(iMatch));
+                        currentStringParts = {};
                         continue
                     end
 
                     if lastWasEscape
-                        currentString = [currentString, actCode(indices(iMatch))];
+                        currentStringParts{end+1} = actCode(indices(iMatch));
                         lastWasEscape = false;
                         continue
                     end
@@ -53,15 +54,15 @@ classdef StringMemory < handle
                     % String started with " and the current character is ' (or vice-versa) -> it is still aprt of the
                     % string
                     if ~strcmp(stringStartedWith, actCode(indices(iMatch)))
-                        currentString = [currentString, actCode(indices(iMatch-1)+1:indices(iMatch))];
+                        currentStringParts{end+1} = actCode(indices(iMatch-1)+1:indices(iMatch));
                     else
                         % String started with ' and the same character comes (or " case)
 
                         isEndOfString = numel(indices) == iMatch || indices(iMatch) + 1 ~= indices(iMatch+1);
 
                         if isEndOfString
-                            currentString = [currentString, actCode(indices(iMatch-1)+1:indices(iMatch)-1)];
-
+                            currentStringParts{end+1} = actCode(indices(iMatch-1)+1:indices(iMatch)-1);
+                            currentString = [currentStringParts{:}];
 
                             if strcmp(stringStartedWith, '''')
                                 memento = MBeautifier.CharacterArrayStringMemento(currentString);
@@ -74,9 +75,9 @@ classdef StringMemory < handle
 
                             strArray{iMatch} = MBeautifier.Constants.StringToken;
                             isInString = false;
-                            currentString = '';
+                            currentStringParts = {};
                         else
-                            currentString = [currentString, actCode(indices(iMatch-1)+1:indices(iMatch))];
+                            currentStringParts{end+1} = actCode(indices(iMatch-1)+1:indices(iMatch));
                             lastWasEscape = true;
                         end
                     end

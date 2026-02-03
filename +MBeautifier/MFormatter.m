@@ -85,8 +85,7 @@ classdef MFormatter < handle
                 end
 
                 if isFormattingOff
-                    replacedTextArray{end+1} = line;
-                    replacedTextArray{end+1} = MBeautifier.Constants.NewLine;
+                    replacedTextArray{end+1} = [line, MBeautifier.Constants.NewLine];
                     continue
                 end
 
@@ -250,8 +249,11 @@ classdef MFormatter < handle
                 replacedTextArray{end+1} = [line, MBeautifier.Constants.NewLine];
             end
             % The last new-line must be removed: inner new-lines are removed by the split, the last one is an additional one
-            if numel(replacedTextArray) && numel(strtrim(replacedTextArray{end}))
-                replacedTextArray{end} = strtrim(replacedTextArray{end});
+            if ~isempty(replacedTextArray)
+                lastLine = replacedTextArray{end};
+                if ~isempty(strtrim(lastLine))
+                    replacedTextArray{end} = strtrim(lastLine);
+                end
             end
 
             nStartingNewlines = obj.Configuration.specialRule('StartingNewlineCount').ValueAsDouble;
@@ -462,9 +464,16 @@ classdef MFormatter < handle
             % Wrapper around code replacement: Replace transponations -> replace strings -> perform other replacements
             % (operators, containers, ...) -> restore strings -> restore transponations.
 
-            code = obj.replaceStrings(obj.replaceTransponations(code));
+            hasQuote = any(code == '''');
+            if hasQuote
+                code = obj.replaceTransponations(code);
+            end
+            code = obj.replaceStrings(code);
             code = obj.performFormattingSingleLine(code, false, '', false);
-            code = obj.restoreTransponations(obj.restoreStrings(code));
+            code = obj.restoreStrings(code);
+            if hasQuote
+                code = obj.restoreTransponations(code);
+            end
         end
 
         function [actCode, actComment, splittingPos, isSectionSeparator] = findComment(obj, line)
@@ -522,7 +531,11 @@ classdef MFormatter < handle
 
             % Replace transponation (and non-conjugate transponations) to avoid not relevant matches
             % This is just to help identify actual strings.
-            possibleCode = obj.replaceTransponations(line, '#');
+            if any(line == '''')
+                possibleCode = obj.replaceTransponations(line, '#');
+            else
+                possibleCode = line;
+            end
 
             exclamationInd = strfind(possibleCode, '!');
             commentSignIndexes = strfind(possibleCode, '%');
@@ -629,9 +642,11 @@ classdef MFormatter < handle
             operatorList = obj.AllOperators;
             operatorAppearance = regexp(data, operatorList);
 
-            if ~isempty([operatorAppearance{:}])
-                for iOpConf = 1:numel(operatorPaddingRules)
-                    currField = operatorPaddingRules{iOpConf};
+            hasAnyOp = ~cellfun('isempty', operatorAppearance);
+            if any(hasAnyOp)
+                foundOpIdx = find(hasAnyOp);
+                for iFound = 1:numel(foundOpIdx)
+                    currField = operatorPaddingRules{foundOpIdx(iFound)};
                     currOpStruct = obj.Configuration.operatorPaddingRule(currField);
                     dataNew = regexprep(data, ['\s*', currOpStruct.ValueFrom, '\s*'], currOpStruct.Token);
                     if ~strcmp(data, dataNew)
@@ -828,10 +843,11 @@ classdef MFormatter < handle
             maxDepth = 1;
             for i = 1:numel(data)
                 borderFound = true;
-                if any(strcmp(data(i), MBeautifier.Constants.ContainerOpeningBrackets))
+                actChar = data(i);
+                if actChar == '[' || actChar == '{' || actChar == '('
                     newDepth = depth + 1;
                     maxDepth = newDepth;
-                elseif any(strcmp(data(i), MBeautifier.Constants.ContainerClosingBrackets))
+                elseif actChar == ']' || actChar == '}' || actChar == ')'
                     newDepth = depth - 1;
                     depth = depth - 1;
                 else
