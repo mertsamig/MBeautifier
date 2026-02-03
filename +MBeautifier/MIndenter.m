@@ -55,18 +55,23 @@ classdef MIndenter < handle
             % start indenting
             newLine = MBeautifier.Constants.NewLine;
             lines = regexp(source, newLine, 'split');
+            pattern = ['[', strjoin(obj.Delimiters, '|'), ']'];
             for linect = 1:numel(lines)
                 % layer of indentation (current line)
                 layer = layerNext;
                 
                 % remove existing indentation and whitespace
-                lines{linect} = strtrim(lines{linect});
+                curLine = strtrim(lines{linect});
+                lines{linect} = curLine;
                 
                 % remove strings and comments for processing
-                line = regexprep(lines{linect}, '(".*")|(''.*'')|(%.*)', '');
+                if any(curLine == '"' | curLine == '''' | curLine == '%')
+                    line = regexprep(curLine, '(".*")|(''.*'')|(%.*)', '');
+                else
+                    line = curLine;
+                end
 
                 % split line in words
-                pattern = ['[', strjoin(obj.Delimiters, '|'), ']'];
                 words = regexp(line, pattern, 'split');
                 % ignore empty lines and comments
                 if (~isempty(line) && (line(1) ~= '%'))

@@ -796,17 +796,17 @@ classdef MFormatter < handle
             end
 
             if ~isContainerElement && ~obj.Configuration.specialRule('AllowMultipleStatementsPerLine').ValueAsDouble
-                if numel(regexp(data, ';')) > 1
+                if sum(data == ';') > 1
                     data = regexprep(data, ';(?!\s*$)', ';\n');
                 end
             end
 
-            data = regexprep(data, MBeautifier.Constants.WhiteSpaceToken, ' ');
+            data = strrep(data, MBeautifier.Constants.WhiteSpaceToken, ' ');
 
-            data = regexprep(data, ' \)', ')');
-            data = regexprep(data, ' \]', ']');
-            data = regexprep(data, '\( ', '(');
-            data = regexprep(data, '\[ ', '[');
+            data = strrep(data, ' )', ')');
+            data = strrep(data, ' ]', ']');
+            data = strrep(data, '( ', '(');
+            data = strrep(data, '[ ', '[');
 
             % Keyword formatting
             keywordRules = obj.Configuration.keywordPaddingRules();
