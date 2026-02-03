@@ -34,10 +34,7 @@ classdef MIndenter < handle
             indentationCharacter = obj.Configuration.specialRule('IndentationCharacter').Value;
             indentationCount = obj.Configuration.specialRule('IndentationCount').ValueAsDouble;
             if strcmpi(indentationCharacter, 'white-space')
-                indent = ' ';
-                for i = 2:indentationCount
-                    indent = [' ', indent];
-                end
+                indent = repmat(' ', 1, indentationCount);
             elseif strcmpi(indentationCharacter, 'tab')
                 indent = '\t';
             else
@@ -69,7 +66,7 @@ classdef MIndenter < handle
                 line = regexprep(lines{linect}, '(".*")|(''.*'')|(%.*)', '');
 
                 % split line in words
-                pattern = ['[', obj.joinString(obj.Delimiters, '|'), ']'];
+                pattern = ['[', strjoin(obj.Delimiters, '|'), ']'];
                 words = regexp(line, pattern, 'split');
                 % ignore empty lines and comments
                 if (~isempty(line) && (line(1) ~= '%'))
@@ -194,26 +191,12 @@ classdef MIndenter < handle
                 end
                 
                 % add correct indentation
-                for ict = 1:layer
-                    if ~makeBlankLinesEmpty || ~isempty(lines{linect})
-                        lines{linect} = [indent, lines{linect}];
-                    end
+                if layer > 0 && (~makeBlankLinesEmpty || ~isempty(lines{linect}))
+                    lines{linect} = [repmat(indent, 1, layer), lines{linect}];
                 end
             end
 
-            indentedSource = obj.joinString(lines, MBeautifier.Constants.NewLine);
+            indentedSource = strjoin(lines, MBeautifier.Constants.NewLine);
         end
-    end
-    
-    methods (Access = private, Static)
-        % TODO: Create a public utility function
-       function outStr = joinString(cellStr, delim)
-            outStr = '';
-            for i = 1:numel(cellStr)
-                outStr = [outStr, cellStr{i}, delim];
-            end
-            
-            outStr(end-numel(delim)+1:end) = '';
-        end 
     end
 end
