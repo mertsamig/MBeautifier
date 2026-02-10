@@ -85,7 +85,7 @@ classdef MFormatter < handle
                 end
 
                 if isFormattingOff
-                    replacedTextArray = [replacedTextArray, line, MBeautifier.Constants.NewLine];
+                    replacedTextArray{end+1} = [line, MBeautifier.Constants.NewLine];
                     continue
                 end
 
@@ -98,13 +98,13 @@ classdef MFormatter < handle
                         continue;
                     end
 
-                    replacedTextArray = [replacedTextArray, MBeautifier.Constants.NewLine];
+                    replacedTextArray{end+1} = MBeautifier.Constants.NewLine;
                     continue;
 
                 else
                     if isSectionSeparator && formatSectionTrailingNewlines && (nNewLinesFound - nSectionTrailingNewlines < 0)
                         for i = 1:abs(nNewLinesFound-nSectionTrailingNewlines)
-                            replacedTextArray = [replacedTextArray, MBeautifier.Constants.NewLine];
+                            replacedTextArray{end+1} = MBeautifier.Constants.NewLine;
                         end
                     end
 
@@ -231,7 +231,7 @@ classdef MFormatter < handle
                                 line = [line, actComment];
                             end
 
-                            replacedTextArray = [replacedTextArray, [line, MBeautifier.Constants.NewLine]];
+                            replacedTextArray{end+1} = [line, MBeautifier.Constants.NewLine];
                             contLineArray = cell(0, 2);
 
                             continue;
@@ -246,11 +246,14 @@ classdef MFormatter < handle
                 else
                     line = [strtrim(actCodeFinal), actComment];
                 end
-                replacedTextArray = [replacedTextArray, [line, MBeautifier.Constants.NewLine]];
+                replacedTextArray{end+1} = [line, MBeautifier.Constants.NewLine];
             end
             % The last new-line must be removed: inner new-lines are removed by the split, the last one is an additional one
-            if numel(replacedTextArray) && numel(strtrim(replacedTextArray{end}))
-                replacedTextArray{end} = strtrim(replacedTextArray{end});
+            if ~isempty(replacedTextArray)
+                lastLine = replacedTextArray{end};
+                if ~isempty(strtrim(lastLine))
+                    replacedTextArray{end} = strtrim(lastLine);
+                end
             end
 
             nStartingNewlines = obj.Configuration.specialRule('StartingNewlineCount').ValueAsDouble;
@@ -283,13 +286,16 @@ classdef MFormatter < handle
         end
 
         function count = getFollowingNewlineCount(textArray)
-            count = 0;
-            for i = 1:numel(textArray)
-                if isempty(strtrim(textArray{i}))
-                    count = count + 1;
-                else
-                    return;
-                end
+            if isempty(textArray)
+                count = 0;
+                return;
+            end
+            isEmpty = cellfun('isempty', strtrim(textArray));
+            firstNotEmpty = find(~isEmpty, 1);
+            if isempty(firstNotEmpty)
+                count = numel(textArray);
+            else
+                count = firstNotEmpty - 1;
             end
         end
 
@@ -308,27 +314,22 @@ classdef MFormatter < handle
         end
 
         function count = getPrecedingNewlineCount(textArray)
-            count = 0;
-            for i = numel(textArray):-1:1
-                if isempty(strtrim(textArray{i}))
+            if isempty(textArray)
+                count = 0;
+                return;
+            end
+            isEmpty = cellfun('isempty', strtrim(textArray));
+            lastNotEmpty = find(~isEmpty, 1, 'last');
+            if isempty(lastNotEmpty)
+                count = numel(textArray);
+            else
+                count = numel(textArray) - lastNotEmpty;
+                if count > 0
                     count = count + 1;
-                else
-                    if count > 0
-                        count = count+1;
-                    end
-                    return;
                 end
             end
         end
 
-        function outStr = joinString(cellStr, delim)
-            outStr = '';
-            for i = 1:numel(cellStr)
-                outStr = [outStr, cellStr{i}, delim];
-            end
-
-            outStr(end-numel(delim)+1:end) = '';
-        end
 
         function tokenStructs = getTokenStruct()
             % Returns the tokens used in replacement.
@@ -382,7 +383,8 @@ classdef MFormatter < handle
 
             charsIndicateTranspose = '[a-zA-Z0-9\)\]\}\.]';
 
-            tempCode = '';
+            tempCode = cell(1, numel(actCode));
+            tempCodeIdx = 0;
             isLastCharDot = false;
             isLastCharTransp = false;
             isInCharStr = false;
@@ -398,20 +400,24 @@ classdef MFormatter < handle
                 if isequal(actChar, '''')
                     % .' => NonConj transpose
                     if isLastCharDot
-                        tempCode = [tempCode(1:end-1), nonConjTrnspTok];
+                        tempCode{tempCodeIdx} = nonConjTrnspTok;
                         isLastCharTransp = true;
                     else
                         if isLastCharTransp
-                            tempCode = [tempCode, trnspTok];
+                            tempCodeIdx = tempCodeIdx + 1;
+                            tempCode{tempCodeIdx} = trnspTok;
                         else
                             if isInDblQuoteStr
-                                tempCode = [tempCode, actChar];
+                                tempCodeIdx = tempCodeIdx + 1;
+                                tempCode{tempCodeIdx} = actChar;
                                 isLastCharTransp = false;
-                            elseif numel(tempCode) && ~isInCharStr && numel(regexp(tempCode(end), charsIndicateTranspose))
-                                tempCode = [tempCode, trnspTok];
+                            elseif tempCodeIdx > 0 && ~isInCharStr && numel(regexp(tempCode{tempCodeIdx}(end), charsIndicateTranspose))
+                                tempCodeIdx = tempCodeIdx + 1;
+                                tempCode{tempCodeIdx} = trnspTok;
                                 isLastCharTransp = true;
                             else
-                                tempCode = [tempCode, actChar];
+                                tempCodeIdx = tempCodeIdx + 1;
+                                tempCode{tempCodeIdx} = actChar;
                                 isInCharStr = ~isInCharStr;
                                 isLastCharTransp = false;
                             end
@@ -421,15 +427,17 @@ classdef MFormatter < handle
                     isLastCharDot = false;
                 elseif isequal(actChar, '.') && ~isInCharStr
                     isLastCharDot = true;
-                    tempCode = [tempCode, actChar];
+                    tempCodeIdx = tempCodeIdx + 1;
+                    tempCode{tempCodeIdx} = actChar;
                     isLastCharTransp = false;
                 else
                     isLastCharDot = false;
-                    tempCode = [tempCode, actChar];
+                    tempCodeIdx = tempCodeIdx + 1;
+                    tempCode{tempCodeIdx} = actChar;
                     isLastCharTransp = false;
                 end
             end
-            actCode = tempCode;
+            actCode = [tempCode{1:tempCodeIdx}];
         end
     end
 
@@ -456,9 +464,16 @@ classdef MFormatter < handle
             % Wrapper around code replacement: Replace transponations -> replace strings -> perform other replacements
             % (operators, containers, ...) -> restore strings -> restore transponations.
 
-            code = obj.replaceStrings(obj.replaceTransponations(code));
+            hasQuote = any(code == '''');
+            if hasQuote
+                code = obj.replaceTransponations(code);
+            end
+            code = obj.replaceStrings(code);
             code = obj.performFormattingSingleLine(code, false, '', false);
-            code = obj.restoreTransponations(obj.restoreStrings(code));
+            code = obj.restoreStrings(code);
+            if hasQuote
+                code = obj.restoreTransponations(code);
+            end
         end
 
         function [actCode, actComment, splittingPos, isSectionSeparator] = findComment(obj, line)
@@ -516,7 +531,11 @@ classdef MFormatter < handle
 
             % Replace transponation (and non-conjugate transponations) to avoid not relevant matches
             % This is just to help identify actual strings.
-            possibleCode = obj.replaceTransponations(line, '#');
+            if any(line == '''')
+                possibleCode = obj.replaceTransponations(line, '#');
+            else
+                possibleCode = line;
+            end
 
             exclamationInd = strfind(possibleCode, '!');
             commentSignIndexes = strfind(possibleCode, '%');
@@ -623,9 +642,11 @@ classdef MFormatter < handle
             operatorList = obj.AllOperators;
             operatorAppearance = regexp(data, operatorList);
 
-            if ~isempty([operatorAppearance{:}])
-                for iOpConf = 1:numel(operatorPaddingRules)
-                    currField = operatorPaddingRules{iOpConf};
+            hasAnyOp = ~cellfun('isempty', operatorAppearance);
+            if any(hasAnyOp)
+                foundOpIdx = find(hasAnyOp);
+                for iFound = 1:numel(foundOpIdx)
+                    currField = operatorPaddingRules{foundOpIdx(iFound)};
                     currOpStruct = obj.Configuration.operatorPaddingRule(currField);
                     dataNew = regexprep(data, ['\s*', currOpStruct.ValueFrom, '\s*'], currOpStruct.Token);
                     if ~strcmp(data, dataNew)
@@ -660,14 +681,14 @@ classdef MFormatter < handle
 
                     splittedData = regexp(data, opToken, 'split');
 
-                    posMatch = ['(', MBeautifier.MFormatter.joinString({'[0-9a-zA-Z_)}\]\.]', ...
+                    posMatch = ['(', strjoin({'[0-9a-zA-Z_)}\]\.]', ...
                         MBeautifier.MFormatter.TokenStruct.TransposeToken.Token, ...
                         MBeautifier.MFormatter.TokenStruct.NonConjTransposeToken.Token, ...
                         MBeautifier.Constants.StringToken, ...
                         '#MBeauty_ArrayToken_\d+#'}, '|'), ')$'];
                     negMatch = [obj.Configuration.operatorPaddingRule('At').Token, ...
                         '#MBeauty_ArrayToken_\d+#$'];
-                    keywordMatch = ['(?=^|\s)(', MBeautifier.MFormatter.joinString(keywords', '|'), ')$'];
+                    keywordMatch = ['(?=^|\s)(', strjoin(keywords', '|'), ')$'];
 
                     replaceTokens = {};
                     for iSplit = 1:numel(splittedData) - 1
@@ -775,17 +796,17 @@ classdef MFormatter < handle
             end
 
             if ~isContainerElement && ~obj.Configuration.specialRule('AllowMultipleStatementsPerLine').ValueAsDouble
-                if numel(regexp(data, ';')) > 1
+                if sum(data == ';') > 1
                     data = regexprep(data, ';(?!\s*$)', ';\n');
                 end
             end
 
-            data = regexprep(data, MBeautifier.Constants.WhiteSpaceToken, ' ');
+            data = strrep(data, MBeautifier.Constants.WhiteSpaceToken, ' ');
 
-            data = regexprep(data, ' \)', ')');
-            data = regexprep(data, ' \]', ']');
-            data = regexprep(data, '\( ', '(');
-            data = regexprep(data, '\[ ', '[');
+            data = strrep(data, ' )', ')');
+            data = strrep(data, ' ]', ']');
+            data = strrep(data, '( ', '(');
+            data = strrep(data, '[ ', '[');
 
             % Keyword formatting
             keywordRules = obj.Configuration.keywordPaddingRules();
@@ -808,9 +829,9 @@ classdef MFormatter < handle
             % Pre-check for opening and closing brackets: the final delta has to be calculated after the transponations and the
             % strings are replaced, which are time consuming actions
             ret = 0;
-            if numel(regexp(code, '{|[')) || numel(regexp(code, '}|]'))
+            if any(code == '{' | code == '[' | code == '}' | code == ']')
                 actCodeTemp = obj.replaceStrings(obj.replaceTransponations(code));
-                ret = numel(regexp(actCodeTemp, '{|[')) - numel(regexp(actCodeTemp, '}|]'));
+                ret = sum(actCodeTemp == '{' | actCodeTemp == '[') - sum(actCodeTemp == '}' | actCodeTemp == ']');
             end
         end
 
@@ -822,10 +843,11 @@ classdef MFormatter < handle
             maxDepth = 1;
             for i = 1:numel(data)
                 borderFound = true;
-                if any(strcmp(data(i), MBeautifier.Constants.ContainerOpeningBrackets))
+                actChar = data(i);
+                if actChar == '[' || actChar == '{' || actChar == '('
                     newDepth = depth + 1;
                     maxDepth = newDepth;
-                elseif any(strcmp(data(i), MBeautifier.Constants.ContainerClosingBrackets))
+                elseif actChar == ']' || actChar == '}' || actChar == ')'
                     newDepth = depth - 1;
                     depth = depth - 1;
                 else

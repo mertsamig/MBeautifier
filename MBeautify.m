@@ -365,10 +365,7 @@ classdef MBeautify
                 indentationCount = 4;
             end
             
-            neededIndentation = regexIndentCharacter;
-            for i = 2:indentationCount
-                neededIndentation = [neededIndentation, regexIndentCharacter];
-            end
+            neededIndentation = repmat(regexIndentCharacter, 1, indentationCount);
             
             newLine = MBeautifier.Constants.NewLine;
             textArray = regexp(editorPage.Text, newLine, 'split');
@@ -388,12 +385,8 @@ classdef MBeautify
                         continue
                     end
                     
-                    searchString = '    ';
-                    replaceString = neededIndentation;
-                    for iAmount = 2:amountOfReplace
-                        searchString = [searchString, '    '];
-                        replaceString = [replaceString, neededIndentation];
-                    end
+                    searchString = repmat('    ', 1, amountOfReplace);
+                    replaceString = repmat(neededIndentation, 1, amountOfReplace);
                     
                     cText = regexprep(cText, ['^', searchString], replaceString);
                 end
